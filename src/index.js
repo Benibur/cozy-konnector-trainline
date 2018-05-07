@@ -98,6 +98,8 @@ const request = requestFactory({
   jar: true
 })
 
+let that
+
 console.log('E1');
 
 /*
@@ -113,12 +115,13 @@ module.exports = new BaseKonnector(start)
 */
 function start(fields) {
   const billsUrls = []
+  that = this
   return (
     signin(fields)
-    .then( ()         =>  getDataFromAPI(billsUrls)       )
+    .then( ()         =>  getDataFromAPI(billsUrls)       ) // TODO remove billsurls
     .then( billsUrls  =>  selectNewUrls(billsUrls)        )
     .then( newPdfUrls =>  getFolderId(newPdfUrls, fields) )
-    .then( newPdfUrls => savePdfsAndBills(newPdfUrls)     )
+    .then( newPdfUrls =>  savePdfsAndBills(newPdfUrls)    )
     // .then( newPdfUrls     => savePdfsAndBills(require('./newPdfUrls.js')) )
     // .then( billsDocuments => linkBankOperations(billsDocuments, DOCTYPE))
     // .then( newPdfUrls => console.log("step url",newPdfUrls) )
@@ -154,7 +157,7 @@ function signin (fields) {
     simple: false
   })
   .then(res => {
-    if (res.statusCode === 422) {
+    if (res.statusCode === 422) { // TODO : test que c'est bien 422 si pwd faux
       throw new Error('LOGIN_FAILED')
     }
     log('info', 'Connected')
@@ -174,7 +177,7 @@ function getDataFromAPI (billsUrls, startdate) {
   // the api/v5_1/pnrs uri gives all information necessary to get
   // bill information
   let reqUrl = `${baseUrl}api/v5_1/pnrs`
-  console.log('start getDataFromAPI');
+  log('info', 'start getDataFromAPI') // TODO mettre les niveau de log : debug, info, warn, error (seul warn et error apparaissent en prod)
   if (startdate !== undefined) {
     reqUrl += `?date=${startdate}`
   }
@@ -236,6 +239,10 @@ function computeNextDate (pnrs) {
 */
 function selectNewUrls (newPdfUrls) {
   // TODO eliminate the already retrieved pdf
+  // baseKonnector.saveAccountData(data, options)
+  // https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#BaseKonnector+saveAccountData
+  // data = that.getAccountData()
+  // this
   console.log('in the end, newPdfUrls');
   console.log(newPdfUrls);
   return newPdfUrls
@@ -247,7 +254,8 @@ function selectNewUrls (newPdfUrls) {
   Store result in a global variable
   Return a promise
 */
-function getFolderId(newPdfUrls, fields) {
+function getFolderId(newPdfUrls, fields) {  // TODO : à supprimer, on peut passer par savefiles avec un folderPath
+  // https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#module_saveFiles
   return(
     cozyClient.files.statByPath(fields.folderPath)
     .then(folderDoc => {
@@ -278,7 +286,7 @@ function savePdfsAndBills (pdfUrls) {
         uri      : url  ,
         encoding : null ,
         headers  : {
-          'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:36.0) Gecko/20100101 Firefox/36.0',
+          // 'User-Agent': 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:36.0) Gecko/20100101 Firefox/36.0', // TODO à supprimer ?
           Authorization: '' // when you request the file, the url is in itself the token to access the file...
         }               ,
         json     : false,
@@ -293,10 +301,11 @@ function savePdfsAndBills (pdfUrls) {
       // 3- save the pdf
       .then( ({bill, pdfBody}) => {
         // test of the pdfBody content :
-        require('fs').writeFileSync('testPdfBody.pdf', pdfBody) // works
+        require('fs').writeFileSync('testPdfBody3.pdf', pdfBody) // works
+        console.log(pdfBody);
         billToSave = bill
         // cozyClient.files.create('my test text', {
-        cozyClient.files.create(pdfBody, { // TODO : doesn't work (empty file in Cozy)
+        return cozyClient.files.create(pdfBody, { // TODO : doesn't work (empty file in Cozy)
           name       : getFileName(billToSave),
           dirID      : FOLDER_ID,
           contentType: 'application/pdf'
@@ -319,7 +328,7 @@ function savePdfsAndBills (pdfUrls) {
     break // TODO remove, just here to test on one file
   }
 
-  return Promise.all(allPromises)
+  return Promise.all(allPromises) // TODO limit the number of // downloads (via bluebird.each ?)
 }
 
 
