@@ -1,13 +1,12 @@
 'use strict'
 
-const {pdf2bill, getDate, getVendorRef, getAmount, text2bill} = require('./pdf2bill')
+const {pdf2bill, getDate, getVendorRef, getAmount, text2bill} = require('../src/pdf2bill')
 const moment = require('moment')
 
 /* ===================================================
   Tests for the regexp of pdf2bill.js
   To run tests : `node pdf2bill.test.js`
 ====================================================== */
-
 
 const payment1 =
 " DESCRIPTION DE L’ACHAT MONTANT Billet aller SZALIL   −  Paris Gare de Lyon  →  Grenoble Lundi 12 mai 2014 à 07:37 2 nde  classe Passager : Benjamin ANDRE 105,00 € Billet retour SZALIL   −  Grenoble  →  Paris Gare de Lyon Lundi 12 mai 2014 à 19:20 1 ère  classe Passager : Benjamin ANDRE 80,00 € DESCRIPTION DU PAIEMENT MONTANT Paiement Trainline du 10/05/14   −  2 trajets 185,00 € Carte bancaire MasterCard terminant par 2809 185,00 € INFORMATIONS COMPLÉMENTAIRES MONTANT Frais d’agence 0,00 € TVA (20 %) sur frais d’agence 0,00 € À titre indicatif, la TVA sur les transports de voyageurs n’est pas récupérable (cf. 5° du 2 du IV de l’article 206 de l’annexe II au CGI). Page 1 sur 1 JUSTIFICATIF DE PAIEMENT N° 2014-374450 Capitaine Train SAS  −  20 rue Saint-Georges  −  75009 Paris SIRET : 512 277 450 00056  −  TVA intra. : FR58512277450 Immatriculation Atout France : IM078100022 CLIENT Benjamin ANDRE ben@sonadresse.com DATE D’ACHAT Samedi 10 mai 2014 à 21h48 (heure de Paris) \n\n"
@@ -51,10 +50,13 @@ getDateTest()
 let result
 
 result = text2bill(payment1, 'http://a-nice-url.com')
-console.log(result.bill)
+// console.log(result.bill)
+// TODO test result
 
 result = text2bill(payment2, 'http://a-nice-url.com')
-console.log(result.bill)
+// console.log(result.bill)
+// TODO test result
 
 result = text2bill(refund1, 'http://a-nice-url.com')
-console.log(result.bill)
+// console.log(result.bill)
+// TODO test result

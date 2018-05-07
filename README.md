@@ -1,7 +1,7 @@
 [Cozy][cozy] <YOUR SUPER NEW KONNECTOR NAME>
 =======================================
 
-What's Cozy?
+What is Cozy?
 ------------
 
 ![Cozy Logo](https://cdn.rawgit.com/cozy/cozy-guidelines/master/templates/cozy_logo_small.svg)
