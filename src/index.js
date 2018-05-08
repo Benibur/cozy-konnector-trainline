@@ -326,6 +326,7 @@ function savePdfsAndBills (pdfUrls, fields) {
         //   dirID      : FOLDER_ID,
         //   contentType: 'application/pdf'
         // })
+        
 
         // test with saveFiles
         return saveFiles(
