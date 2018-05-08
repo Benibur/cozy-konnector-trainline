@@ -114,17 +114,16 @@ module.exports = new BaseKonnector(start)
   the account information come from ./konnector-dev-config.json file
 */
 function start(fields) {
-  const billsUrls = []
   that = this
   return (
     signin(fields)
-    .then( ()         =>  getDataFromAPI(billsUrls)       ) // TODO remove billsurls
-    .then( billsUrls  =>  selectNewUrls(billsUrls)        )
-    .then( newPdfUrls =>  getFolderId(newPdfUrls, fields) )
-    .then( newPdfUrls =>  savePdfsAndBills(newPdfUrls)    )
-    // .then( newPdfUrls     => savePdfsAndBills(require('./newPdfUrls.js')) )
-    // .then( billsDocuments => linkBankOperations(billsDocuments, DOCTYPE))
-    // .then( newPdfUrls => console.log("step url",newPdfUrls) )
+    .then( ()             => getDataFromAPI()                             )
+    .then( billsUrls      => selectNewUrls(billsUrls)                     )
+    .then( newBillsUrls   => getFolderId(newBillsUrls, fields)            )
+    .then( newBillsUrls   => savePdfsAndBills(newBillsUrls, fields)       )
+    // .then( newBillsUrls   => savePdfsAndBills(require('./newPdfUrls.js')) )
+    // .then( billsDocuments => linkBankOperations(billsDocuments, DOCTYPE)  )
+    // .then( newBillsUrls   => console.log("step url",newBillsUrls)         )
   )
 }
 
@@ -157,7 +156,7 @@ function signin (fields) {
     simple: false
   })
   .then(res => {
-    if (res.statusCode === 422) { // TODO : test que c'est bien 422 si pwd faux
+    if (res.statusCode === 422) {
       throw new Error('LOGIN_FAILED')
     }
     log('info', 'Connected')
@@ -173,23 +172,30 @@ function signin (fields) {
 /*
   Retrieve data from the API
 */
-function getDataFromAPI (billsUrls, startdate) {
-  // the api/v5_1/pnrs uri gives all information necessary to get
-  // bill information
+function getDataFromAPI () {
+  const billsUrls = []
+  return getDataFromAPI_recursive(billsUrls)
+}
+
+
+/*
+  Recursively retrieve data from the API
+*/
+function getDataFromAPI_recursive (billsUrls, startdate) {
+  // the api/v5_1/pnrs uri gives all information necessary to get bill information
   let reqUrl = `${baseUrl}api/v5_1/pnrs`
-  log('info', 'start getDataFromAPI') // TODO mettre les niveau de log : debug, info, warn, error (seul warn et error apparaissent en prod)
   if (startdate !== undefined) {
     reqUrl += `?date=${startdate}`
   }
-  console.log('Request :', reqUrl)
+  log('info', 'start getDataFromAPI_recursive : ' + reqUrl)
   return rq(reqUrl)
   .then(API_body => {
-    // We check there are bills (proofs)
-    // console.log(JSON.stringify(API_body));
+    // check there are bills (proofs)
+    // log('debug', JSON.stringify(API_body));
     if (API_body.proofs && API_body.proofs.length > 0) {
       extractProofUrls(API_body, billsUrls)
       return billsUrls // TODO remove, just for tests with one loop
-      return getDataFromAPI(billsUrls, computeNextDate(API_body.pnrs))
+      return getDataFromAPI_recursive(billsUrls, computeNextDate(API_body.pnrs))
     } else {
       return billsUrls
     }
@@ -237,15 +243,21 @@ function computeNextDate (pnrs) {
 /*
   Returns newPdfUrls
 */
-function selectNewUrls (newPdfUrls) {
-  // TODO eliminate the already retrieved pdf
-  // baseKonnector.saveAccountData(data, options)
-  // https://github.com/konnectors/libs/blob/master/packages/cozy-konnector-libs/docs/api.md#BaseKonnector+saveAccountData
-  // data = that.getAccountData()
-  // this
-  console.log('in the end, newPdfUrls');
-  console.log(newPdfUrls);
-  return newPdfUrls
+function selectNewUrls (billsUrls) {
+  // retrieve the already downloaded bills urls
+  data = that.getAccountData()
+  console.log(data); // TODO check in dev mode
+  let downloadedBills
+  if (data && data.downloadedBills) {
+    downloadedBills = data.downloadedBills
+  } else {
+    downloadedBills = []
+  }
+  // return only new bill's urls
+  const newBillsUrls = billsUrls.filter(el => !downloadedBills.includes(el))
+  log('debug', 'in the end, newBillsUrls')
+  log('debug', newBillsUrls)
+  return newBillsUrls
 }
 
 
@@ -271,11 +283,14 @@ function getFolderId(newPdfUrls, fields) {  // TODO : à supprimer, on peut pass
   Fetch the pdf from server, parse it, prepare the bill
   ,save pdf and then the bill.
 */
-function savePdfsAndBills (pdfUrls) {
+function savePdfsAndBills (pdfUrls, fields) {
   console.log("savePdfsAndBills pdfUrls ");
-  // for each url prepare a promise to chain its operations (download of the pdf, parse it,
-  // save pdf and save the bill) and list those promises in an array to return a unique
-  // promise
+  // for each url prepare a promise to chain its operations :
+  //   1/ download of the pdf,
+  //   2/ parse it
+  //   3/ save the pdf
+  //   4/ save the bill
+  // list those promises in an array to return a unique promise
   const allPromises = []
   for (let url of pdfUrls) {
     let billToSave
@@ -301,27 +316,45 @@ function savePdfsAndBills (pdfUrls) {
       // 3- save the pdf
       .then( ({bill, pdfBody}) => {
         // test of the pdfBody content :
-        require('fs').writeFileSync('testPdfBody3.pdf', pdfBody) // works
+        require('fs').writeFileSync('testPdfBody4.pdf', pdfBody) // works
         console.log(pdfBody);
         billToSave = bill
-        // cozyClient.files.create('my test text', {
-        return cozyClient.files.create(pdfBody, { // TODO : doesn't work (empty file in Cozy)
-          name       : getFileName(billToSave),
-          dirID      : FOLDER_ID,
-          contentType: 'application/pdf'
-        })
+
+        // TODO : doesn't work (empty file in Cozy)
+        // return cozyClient.files.create(pdfBody, {
+        //   name       : getFileName(billToSave),
+        //   dirID      : FOLDER_ID,
+        //   contentType: 'application/pdf'
+        // })
+
+        // test with saveFiles
+        return saveFiles(
+          [{
+            filestream: pdfBody,
+            filename  : getFileName(billToSave)
+          }],
+          fields
+        )
       })
 
       // 4- save the bill
       .then( fileDocument => {
-        // TODO : keep the following commented code ? role of those instructions ?
-        // This allows us to have the warning message at the first run
-        // checkMimeWithPath(fileDocument.attributes.mime, fileDocument.attributes.name)
-        // checkFileSize(fileDocument)
+        // TODO finish
+        // console.log(fileDocument);
+        // saveBills(
+        //   [{
+        //     filename:,
+        //     filestream:,
+        //     vendor...}],
+        //   fields.folderPath,
+        //   {identifiers:[trainline]}
+        // )
+
         billToSave.invoice = `io.cozy.files:${fileDocument._id}`
         // return cozyClient.data.create(DOCTYPE, billToSave)
         checkBillsFileHasBeenDeleted()
         return require('fs').appendFileAsync('bills.json', JSON.stringify(billToSave,3))
+        saveBills()
       })
       .catch(err => console.log(err) ) // TODO
     )
@@ -335,35 +368,9 @@ function savePdfsAndBills (pdfUrls) {
 var isBillsFileInitiated = false
 function checkBillsFileHasBeenDeleted() {
   if (isBillsFileInitiated) return
-  require('fs').writeFileSync('bills.json', '')
+  require('fs').writeFileSync('tests/bills.json', '')
   isBillsFileInitiated = true
 }
-//
-// function billFromPdfAndSave (pdf, url) {
-//   console.log('billFromPdfAndSave', url)
-//   return (
-//     pdf2bill(pdf, url)
-//       .then(
-//
-//       )
-//   )
-//
-//     .then(folder => {
-//       const createFileOptions =
-//       return cozy.files.create(pdf, createFileOptions)
-//     })
-//     .then(fileDocument => {
-//       // This allows us to have the warning message at the first run
-//       // checkMimeWithPath(fileDocument.attributes.mime, fileDocument.attributes.name)
-//       // checkFileSize(fileDocument)
-//       bill.invoice = `io.cozy.files:${fileDocument._id}`
-//       // return cozyClient.data.create(DOCTYPE, bill)
-//       return require('fs').appendFileAsync('bills.json', JSON.stringify(bill,3))
-//     })
-//     // .then(billDocument => {
-//     //   // on retourne le doc pour
-//     // })
-// }
 
 
 function getFileName (bill) {

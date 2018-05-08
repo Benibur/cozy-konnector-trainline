@@ -4,6 +4,7 @@
 konnector-dev-config.json*
 fixtures/*
 retrieved-data/*
+tests/bills.json
 
 # NPM
 node_modules/
